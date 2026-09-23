@@ -29,11 +29,13 @@ Bookings supports either selected dates or **All imported history**. History mod
 
 ## Ask and schedule filters
 
-Type a schedule question and press Enter. Ask immediately filters the schedule grid, without an Apply button or a redirect to the Bookings list. A request for a year such as “show all bookings in 2000” opens January 2000 with a visible 1 January–31 December range chip; month arrows keep that range and stop at its ends. A deliberate month-picker, Today, or Latest data selection clears the date range while retaining berth, vessel, kind, and issue filters.
+Type a schedule question and pause briefly. Ask automatically filters or navigates the schedule after about 400 ms; pressing Enter or the arrow button runs the request immediately. There is no Apply step or redirect to the Bookings list. Changing the text cancels the previous request so an older response cannot replace the latest filters. Clearing the input removes the filters and keeps the month currently on screen.
+
+A request for a year such as “show all bookings in 2000” opens January 2000 with a visible 1 January–31 December range chip; month arrows keep that range and stop at its ends. A deliberate month-picker, Today, or Latest data selection clears the date range while retaining berth, vessel, kind, and issue filters.
 
 The URL stores the active filters, so a filtered view can be bookmarked or shared. Remove any chip to update the grid immediately, or select Clear filters. Multiple values within a filter are included; different filter fields narrow the results together. Bars are clipped to the selected days, but their drawer retains the original booking dates and source. Filtered counts and occupancy describe the matching bookings; hidden bookings can still occupy the berth.
 
-Ask can also prepare a new booking, for example “Create a community sail day at North Pier Face on July 10, 2026” or “book R/V Clear Tern at North Pier East from 3 to 10 July 2026.” It opens one editable draft and makes no reservation write. Missing or ambiguous required details remain blank for the coordinator to complete. Only **Save booking** sends the authoritative validation request; a successful save returns to the schedule and focuses the saved booking.
+Ask can also prepare a new booking, for example “Create a community sail day at North Pier Face on July 10, 2026” or “book R/V Clear Tern at North Pier East from 3 to 10 July 2026.” For a creation request, press Enter or the arrow button to open one editable draft; typing alone does not open the draft or write a reservation. Missing or ambiguous required details remain blank for the coordinator to complete. Only **Save booking** sends the authoritative validation request; a successful save returns to the schedule and focuses the saved booking.
 
 ## Validate
 
@@ -147,7 +149,7 @@ The manual seed command has the same empty-database guard. Set `FORCE_RESEED=tru
 4. Try a second vessel on the same berth and dates. Inspect the conflict and suggested date shift.
 5. In **Vessels**, change R/V Golden Compass to 300 ft to create 23 fit issues, then to 200 ft to clear those 23.
 6. Use **Find a berth** for 120 ft, 1–7 August 2026. North Pier East and North Pier West fit; shorter berths are visibly marked.
-7. Open **Migration** for the 2,587 imported reservations and grouped review log. In the schedule’s Ask bar, enter “show all bookings in 2000” to open January with the whole-year range active; move to February without losing the filters.
-8. Ask to book a vessel and inspect the editable draft. Complete any blank required fields, then select Save booking; the server validates and the schedule focuses the saved record.
+7. Open **Migration** for the 2,587 imported reservations and grouped review log. In the schedule’s Ask bar, type “show all bookings in 2000” and pause to open January with the whole-year range active; move to February without losing the filters. Clear the input to remove the filters while staying in February.
+8. Type a request to book a vessel, then press Enter or the arrow button to inspect the editable draft. Complete any blank required fields, then select Save booking; the server validates and the schedule focuses the saved record.
 
 See [DECISIONS.md](DECISIONS.md) for assumptions, tradeoffs, and questions for the dock coordinator.
