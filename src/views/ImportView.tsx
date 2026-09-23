@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { ImportIssueDTO } from '../../shared/types';
 import { api, params, rangeLabel } from '../api';
@@ -7,6 +7,7 @@ import { useApp } from '../context';
 import Icon from '../components/Icon';
 import { EmptyState, ErrorState, Loading } from '../components/UI';
 import '../styles/views.css';
+import UploadView from './UploadView';
 
 type Severity = 'info' | 'warn' | 'error';
 type Code = { code: string; count: number; severity: Severity };
@@ -47,7 +48,7 @@ function LogEntries({ code }: { code: string }) {
   return <div className="import-log-entries">{entries.map(entry => <article className="import-log-entry" key={entry.id}><div className="log-source"><Icon name="import" size={14}/><code>{entry.sheet ? `${entry.sheet}${entry.cell ? `!${entry.cell}` : ''}` : 'Workbook'}</code></div><div><p>{entry.message}</p>{entry.reservationId && <button className="subtle-link" onClick={() => showBooking(entry.reservationId!)}>View booking<Icon name="arrow" size={12}/></button>}</div></article>)}{query.hasNextPage && <div className="pagination"><span className="muted">{entries.length} of {query.data?.pages[0].total} entries</span><button className="button small" onClick={() => void query.fetchNextPage()} disabled={query.isFetchingNextPage}>{query.isFetchingNextPage ? 'Loading…' : 'Load more entries'}<Icon name="down" size={13}/></button></div>}</div>;
 }
 
-export default function ImportView() {
+function MigrationReport() {
   const { meta } = useApp();
   const summary = meta.importSummary;
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -65,4 +66,10 @@ export default function ImportView() {
     <section className="migration-log card"><div className="log-heading"><div><h2>Migration log</h2><p>{totalEntries.toLocaleString()} source notes, grouped into {Object.keys(summary.import_issues_by_code).length} categories</p></div><span className="muted">Select a category to inspect the source</span></div><div className="filter-bar log-filters"><label className="field search-field"><span className="sr-only">Search migration categories</span><div className="input-with-icon"><Icon name="search"/><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search migration notes"/></div></label><label className="field"><span className="sr-only">Severity</span><select value={severity} onChange={e => setSeverity(e.target.value)}><option value="">All notes</option><option value="warn">Needs review</option><option value="info">Information</option><option value="error">Errors</option></select></label></div>
       {codes.isPending ? <Loading label="Loading migration log…"/> : codes.isError ? <ErrorState error={codes.error} retry={() => void codes.refetch()}/> : !displayed.length ? <EmptyState icon="search" title="No matching categories">Try another search or select all notes.</EmptyState> : <div className="import-groups">{displayed.map(code => { const description = descriptions[code.code] ?? { title: code.code.toLowerCase().replaceAll('_', ' '), detail: 'Inspect the source notes for this migration category.' }; return <article className={`import-group${expanded.has(code.code) ? ' expanded' : ''}`} key={code.code}><button className="import-group-toggle" aria-expanded={expanded.has(code.code)} aria-controls={`log-${code.code}`} onClick={() => toggle(code.code)}><span className={`log-severity-icon severity-${code.severity}`}><Icon name={code.severity === 'info' ? 'import' : 'alert'} size={18}/></span><span className="import-group-label"><strong>{description.title}</strong><span>{description.detail}</span><code>{code.code}</code></span><span className={`severity-pill severity-${code.severity}`}>{severityLabel[code.severity]}</span><span className="log-count">{code.count}</span><Icon name="down" size={16} className="expand-chevron"/></button>{expanded.has(code.code) && <div id={`log-${code.code}`}><LogEntries code={code.code}/></div>}</article>; })}</div>}
     </section><p className="migration-footnote"><Icon name="clock" size={14}/>Longest imported stay: {summary.max_span_days} days. New bookings are limited to 366 days. {summary.carryover_blocks_skipped} copied December blocks were compared and skipped.</p></section>;
+}
+
+export default function ImportView() {
+  const [search] = useSearchParams();
+  const migration = search.get('view') === 'migration';
+  return <><nav className="import-view-tabs" aria-label="Import views"><Link className={!migration ? 'active' : ''} aria-current={!migration ? 'page' : undefined} to="/import">Upload Excel</Link><Link className={migration ? 'active' : ''} aria-current={migration ? 'page' : undefined} to="/import?view=migration">Original migration</Link></nav>{migration ? <MigrationReport/> : <UploadView/>}</>;
 }

@@ -1,0 +1,64 @@
+.import-view-tabs { display: flex; gap: 22px; border-bottom: 1px solid #dce5ea; margin: -8px 0 25px; }
+.import-view-tabs a { padding: 11px 1px; font-size: 13px; color: #677f8e; text-decoration: none; border-bottom: 2px solid transparent; }
+.import-view-tabs a.active { color: #315d79; border-color: #315d79; font-weight: 600; }
+.upload-layout { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 25px; align-items: start; }
+.upload-main, .upload-sidebar { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.upload-main > .card, .upload-sidebar > .card { padding: 24px; }
+.upload-step { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 22px; }
+.upload-step > span { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; background: #e8f0f5; color: #315d79; border-radius: 50%; font-weight: 600; font-size: 12px; }
+.upload-view h2 { font-family: var(--font-display); font-size: 20px; font-weight: 600; margin: 0; }
+.upload-step p, .upload-help { font-size: 12px; color: #5e7280; line-height: 1.6; margin: 7px 0 0; }
+.upload-intro > .field { margin-bottom: 18px; max-width: 450px; }
+.upload-dropzone { border: 1.5px dashed #9bb4c4; background: #f8fbfd; border-radius: 8px; padding: 26px 18px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; transition: background .15s; }
+.upload-dropzone.dragging { border-color: #2d6c8d; background: #e7f2f8; }
+.upload-dropzone.inactive { opacity: .65; }
+.upload-emblem { color: #507f98; background: #e8f1f6; border-radius: 12px; display: grid; place-items: center; width: 54px; height: 54px; margin-bottom: 4px; }
+.upload-dropzone > strong { font-size: 16px; font-weight: 500; }
+.upload-dropzone > p { color: #5e7280; font-size: 11px; line-height: 1.5; }
+.upload-choose, .upload-actions, .upload-destinations { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 13px; }
+.upload-queue-caption { display: flex; justify-content: space-between; gap: 12px; color: #607684; font-size: 12px; margin: 23px 0 10px; }
+.upload-file { display: flex; align-items: flex-start; gap: 10px; padding: 13px 0; border-top: 1px solid #e5ebef; font-size: 12px; min-width: 0; }
+.upload-file > svg { flex-shrink: 0; margin-top: 2px; color: #66859a; }
+.upload-file > div { flex: 1; min-width: 0; }
+.upload-file strong { display: block; font-weight: 500; overflow-wrap: anywhere; }
+.upload-file span, .upload-file small { display: block; color: #607684; font-size: 11px; line-height: 1.5; margin-top: 3px; overflow-wrap: anywhere; }
+.upload-file > small { flex-shrink: 0; }
+.upload-file.error > svg, .upload-file.error span { color: #a5493c; }
+.upload-file.ready > svg, .upload-file.duplicate > svg { color: #4c7b63; }
+.prepare-files { margin-top: 18px; }
+.upload-progress > div { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.upload-progress button { margin-left: auto; }
+.upload-progress progress { width: 100%; height: 9px; accent-color: #37799b; margin: 20px 0 7px; }
+.upload-progress p { color: #607684; font-size: 11px; line-height: 1.6; }
+.upload-notice { display: flex; gap: 10px; align-items: flex-start; padding: 15px 17px; font-size: 12px; line-height: 1.6; background: #edf4f8; color: #3e637b; border-radius: 7px; }
+.upload-notice > svg { flex-shrink: 0; margin-top: 2px; }
+.upload-notice.error { background: #f9eeeb; color: #904638; }
+.upload-totals { display: grid; grid-template-columns: repeat(4,1fr); gap: 15px; border-bottom: 1px solid #e0e8ed; padding-bottom: 19px; }
+.upload-totals strong { display: block; font-size: 25px; font-weight: 600; }
+.upload-totals span { color: #637c8c; font-size: 11px; display: block; line-height: 1.45; margin-top: 4px; }
+.upload-policy { background: #f4f7f9; border-radius: 5px; padding: 12px 14px; color: #567083; font-size: 12px; line-height: 1.6; margin-top: 15px; }
+.import-job-status { display: inline-block; font-size: 10px; border-radius: 4px; background: #e8eff4; color: #416c85; padding: 2px 6px; margin-left: 7px; }
+.import-job-status.completed { background: #e6f0e9; color: #456c55; }
+.upload-preview { margin-top: 25px; border-top: 1px solid #dde6ec; padding-top: 18px; }
+.upload-preview h3 { font-size: 15px; font-weight: 500; }
+.upload-preview .table-scroll { margin-top: 13px; }
+.upload-preview table { min-width: 570px; }
+.upload-preview td { max-width: 230px; white-space: normal; overflow-wrap: anywhere; }
+.upload-preview td small { display: block; font-size: 10px; color: #667d8b; margin-top: 4px; }
+.upload-preview td .upload-row-error { color: #a14637; }
+.upload-server-files, .upload-diagnostics { border-top: 1px solid #dfe7ec; padding-top: 15px; margin-top: 20px; }
+.upload-view summary { cursor: pointer; color: #456a82; font-size: 12px; }
+.upload-diagnostics p { font-size: 11px; line-height: 1.6; padding-top: 12px; color: #5e7280; }
+.upload-diagnostics small { display: block; }
+.upload-sidebar h2 { font-size: 17px; }
+.upload-sidebar ol { padding-left: 18px; color: #526e80; font-size: 12px; line-height: 1.7; margin: 16px 0; }
+.upload-sidebar li { padding: 0 0 10px 4px; }
+.upload-sidebar p { color: #607684; font-size: 11px; line-height: 1.7; margin: 12px 0; }
+.upload-sidebar .subtle-link { font-size: 11px; }
+.upload-history-heading { display: flex; align-items: center; justify-content: space-between; }
+.upload-history-item { display: block; width: 100%; text-align: left; padding: 13px 10px; margin: 7px -3px 0; background: transparent; border: 1px solid transparent; border-radius: 5px; }
+.upload-history-item.selected { background: #edf4f8; border-color: #d2e1eb; }
+.upload-history-item strong { font-size: 12px; font-weight: 500; display: block; overflow-wrap: anywhere; }
+.upload-history-item span, .upload-history-item small { display: block; color: #647d8d; font-size: 10px; margin-top: 5px; }
+@media(max-width:1000px) { .upload-layout { grid-template-columns: minmax(0,1fr); }.upload-sidebar { display: grid; grid-template-columns: 1fr 1fr; } }
+@media(max-width:600px) { .upload-main > .card, .upload-sidebar > .card { padding: 17px; }.upload-view .page-heading { flex-wrap: wrap; }.upload-sidebar { display: flex; }.upload-totals { grid-template-columns: 1fr 1fr; row-gap: 20px; }.upload-step { gap: 9px; }.upload-view h2 { font-size: 18px; }.upload-dropzone { padding: 23px 10px; }.upload-file > small { display: none; }.upload-step p { font-size: 11px; }.upload-progress > div { flex-wrap: wrap; }.upload-progress > div strong { max-width: 210px; }.import-view-tabs { margin-top: -4px; } }

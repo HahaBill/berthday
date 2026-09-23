@@ -1,7 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import type { IssueDTO, ReservationDTO, VesselDTO } from '../../shared/types';
+import type { BerthDTO, IssueDTO, ReservationDTO, VesselDTO } from '../../shared/types';
 import { addDays, monthEnd, monthStart, todayIn } from '../../shared/dates';
 import { allPages, bookingName, dateLabel, issueLabel, params, rangeLabel } from '../api';
 import { useApp } from '../context';
@@ -11,10 +11,14 @@ import AskBar from '../components/AskBar';
 import Icon from '../components/Icon';
 import { EmptyState, ErrorState, Loading } from '../components/UI';
 import '../styles/schedule-filters.css';
+import '../styles/grid-resources.css';
+const ResourceDialog = lazy(() => import('../components/ResourceDialog'));
 
 export default function ScheduleView() {
   const { meta, findBerth } = useApp();
   const [search, setSearch] = useSearchParams();
+  const [addingResource, setAddingResource] = useState(false);
+  const [resourceFocus, setResourceFocus] = useState<string | null>(null);
   const searchKey = search.toString();
   const filters = useMemo(() => parseScheduleFilters(search), [searchKey]);
   const filtered = hasScheduleFilters(filters);
@@ -41,6 +45,27 @@ export default function ScheduleView() {
     const next = removeScheduleFilter(current, key, value); next.set('month', month); return next;
   });
   const resetFilters = () => setSearch(current => { const next = clearScheduleFilters(current); next.set('month', month); return next; });
+  function resourceCreated(resource: BerthDTO) {
+    setAddingResource(false);
+    // Include the new row in an explicitly narrowed berth view without changing dates.
+    if (filters.berthIds.length) setSearch(current => {
+      const next = new URLSearchParams(current);
+      next.set('berthIds', [...new Set([...filters.berthIds, resource.id])].join(','));
+      return next;
+    }, { replace: true });
+    setResourceFocus(resource.id);
+  }
+  useEffect(() => {
+    if (!resourceFocus || !bookingsReady || !berths.some(berth => berth.id === resourceFocus)) return;
+    const frame = requestAnimationFrame(() => {
+      const element = document.getElementById(`resource-${resourceFocus}`);
+      if (!element) return;
+      element.scrollIntoView({ block: 'center', inline: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      element.focus({ preventScroll: true });
+      setResourceFocus(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [resourceFocus, berths, bookingsReady]);
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
       if (event.altKey || event.ctrlKey || event.metaKey || (event.target instanceof HTMLElement && event.target.closest('input,select,textarea,dialog,button,[contenteditable="true"]'))) return;
@@ -83,7 +108,7 @@ export default function ScheduleView() {
     {filtered && bookingsReady && <p className="filtered-occupancy-note">Occupancy uses matching bookings across {occupancy.berthCount} exclusive {occupancy.berthCount === 1 ? 'berth' : 'berths'} and {occupancy.dayCount} selected {occupancy.dayCount === 1 ? 'day' : 'days'} in this month. Hidden bookings may still occupy these berths.</p>}
     <div className="schedule-layout"><section className="schedule-card" aria-label="Monthly berth schedule"><div className="schedule-toolbar"><div className="month-navigation"><div className="arrow-group"><button className="icon-button" aria-label="Previous month" disabled={!previousMonth} onClick={() => previousMonth && changeMonth(previousMonth)}><Icon name="left" size={16}/></button><button className="icon-button" aria-label="Next month" disabled={!nextMonth} onClick={() => nextMonth && changeMonth(nextMonth)}><Icon name="right" size={16}/></button></div><label className="month-control"><span>{dateLabel(from, { month: 'long', year: 'numeric' })}</span><Icon name="down" size={14}/><input type="month" aria-label="Choose month" value={month} onChange={event => event.target.value && changeMonth(event.target.value, true)}/></label></div><div className="month-actions"><button className="button small" onClick={() => changeMonth((meta.dataRange?.to ?? todayIn()).slice(0, 7), true)}>Latest data</button><button className="button small text-button" onClick={() => changeMonth(todayIn().slice(0, 7), true)}>Today</button></div></div>
       <div className="grid-information"><span><span className="tiny-dot"/>{filters.berthIds.length ? 'Selected berths' : 'All berths'} <span className="muted">· {resourceCount} {resourceCount === 1 ? 'resource' : 'resources'}</span></span><span><Icon name="plus" size={12}/>{filtered ? 'Click a day to start a booking' : 'Click or drag empty days to book'}</span></div>
-      {bookingsPending ? <Loading/> : bookingsError ? <ErrorState error={bookingsError} retry={() => { void reservations.refetch(); void issues.refetch(); }}/> : !berths.length ? <EmptyState icon="filter" title="No berths match these filters">Remove a berth filter to restore its schedule row.</EmptyState> : <MonthGrid month={month} reservations={rows} berths={berths} focus={focusedId} from={filters.from} to={filters.to}/>}
+      {bookingsPending ? <Loading/> : bookingsError ? <ErrorState error={bookingsError} retry={() => { void reservations.refetch(); void issues.refetch(); }}/> : !berths.length ? <EmptyState icon="filter" title="No berths match these filters">Remove a berth filter to restore its schedule row.</EmptyState> : <MonthGrid month={month} reservations={rows} berths={berths} focus={focusedId} from={filters.from} to={filters.to} onAddResource={() => setAddingResource(true)}/>}
       {bookingsReady && rows.length === 0 && <div className="schedule-empty-filter" role="status"><Icon name={filtered ? 'filter' : 'calendar'} size={18}/><div><strong>{filtered ? 'No bookings match these filters in this month.' : 'No bookings are scheduled in this month.'}</strong><p>{filtered ? 'Use the month arrows to explore the selected dates, remove a filter, or clear all filters.' : 'Select Latest data to explore the imported schedule, or choose a day to add a booking.'}</p></div>{filtered && <button className="button small" onClick={resetFilters}>Clear filters</button>}</div>}
       <div className="grid-legend"><span><i className="legend-vessel"/>Vessel</span><span><i className="legend-event"/>Event</span><span><i className="legend-closure"/>Closure</span><span><i className="legend-hold"/>Hold</span><span className="legend-divider"/><span><i className="legend-conflict"/>Conflict</span><span><i className="legend-fit"/>Fit issue</span><span className="inclusive-note">Dates are inclusive</span></div>
     </section><aside className="schedule-sidebar"><div className="sidebar-card"><div className="sidebar-heading"><h3><Icon name="alert" size={17}/>{filtered ? 'Matching issues' : 'Issues this month'}</h3><span className="count-badge">{issueCount}</span></div><p className="sidebar-description">{filtered ? 'Unreviewed issues affecting the bookings shown.' : 'Review unconfirmed changes and booking conflicts.'}</p>
@@ -95,5 +120,6 @@ export default function ScheduleView() {
       <div className="find-prompt"><div className="compass-graphic"><Icon name="anchor" size={24}/></div><h3>Room for your next arrival?</h3><p>Find an available berth that fits your vessel and your dates.</p><button className="button" onClick={() => findBerth({ start: from, end: addDays(from, 6) })}>Find a berth<Icon name="arrow" size={16}/></button></div>
       <div className="schedule-note"><Icon name="help" size={16}/><p>One booking per berth, per day.<br/>Shared resources allow multiple vessels.</p></div>
     </aside></div>
+    {addingResource && <Suspense fallback={<Loading label="Opening resource form…"/>}><ResourceDialog onClose={() => setAddingResource(false)} onCreated={resourceCreated}/></Suspense>}
   </>;
 }

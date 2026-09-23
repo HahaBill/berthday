@@ -10,7 +10,6 @@ export interface BookingQuery { from: string; to: string; berthId?: string; vess
 export interface IssueQuery { type?: string; from?: string; to?: string; berthId?: string; includeReviewed?: boolean; limit?: number; cursor?: string }
 export interface VesselQuery { q?: string; lengthStatus?: string; limit?: number; cursor?: string }
 
-const spanCache = new WeakMap<D1Database, number>();
 const text = (value: unknown) => value == null ? null : String(value);
 const number = (value: unknown) => value == null ? null : Number(value);
 const json = <T>(value: unknown, fallback: T): T => {
@@ -58,15 +57,14 @@ function mapReservation(row: Row): ReservationDTO {
 }
 
 export async function getSpan(db: D1Database): Promise<number> {
-  const existing = spanCache.get(db);
-  if (existing) return existing;
+  // Imports can extend historical spans from any Worker isolate. A cheap indexed
+  // metadata read avoids a stale process cache hiding a newly imported long stay.
   const row = await db.prepare("SELECT value FROM app_meta WHERE key = 'max_span_days'").first<{ value: string }>();
   const value = Math.max(366, Number(row?.value) || 366);
-  spanCache.set(db, value);
   return value;
 }
 export async function getBerths(db: D1Database): Promise<BerthDTO[]> {
-  const { results } = await db.prepare('SELECT id, name, length_ft, is_exclusive, sort_order FROM berths ORDER BY sort_order, id').all<Row>();
+  const { results } = await db.prepare("SELECT id, name, length_ft, is_exclusive, sort_order FROM berths ORDER BY CASE WHEN id = 'unassigned' THEN 2 WHEN is_exclusive = 1 THEN 0 ELSE 1 END, sort_order, id").all<Row>();
   return results.map(mapBerth);
 }
 export async function getMeta(db: D1Database) {
@@ -84,9 +82,12 @@ export async function getReservation(db: D1Database, id: string): Promise<Reserv
   const row = await db.prepare(`${reservationSelect} WHERE r.id = ?`).bind(id).first<Row>();
   return row ? mapReservation(row) : null;
 }
-function bookingConditions(query: BookingQuery, span: number) {
-  const terms = ["r.start_date <= ? AND r.end_date >= ? AND r.start_date >= date(?, '-' || ? || ' days')"];
-  const values: Value[] = [query.to, query.from, query.from, span];
+function bookingConditions(query: BookingQuery) {
+  // Read the span in this statement's snapshot: a concurrent import may add a
+  // long stay immediately before this read. SQLite date arithmetic can underflow
+  // for a valid multi-millennium span, so the earliest supported ISO day is safe.
+  const terms = ["r.start_date <= ? AND r.end_date >= ? AND r.start_date >= coalesce(date(?, '-' || coalesce((SELECT CAST(value AS INTEGER) FROM app_meta WHERE key = 'max_span_days'),366) || ' days'),'0001-01-01')"];
+  const values: Value[] = [query.to, query.from, query.from];
   for (const [key, value] of [['berth_id', query.berthId], ['vessel_id', query.vesselId], ['kind', query.kind]] as const) {
     if (value) { terms.push(`r.${key} = ?`); values.push(value); }
   }
@@ -98,7 +99,7 @@ function bookingConditions(query: BookingQuery, span: number) {
   return { terms, values };
 }
 export async function listReservations(db: D1Database, query: BookingQuery) {
-  const { terms, values } = bookingConditions(query, await getSpan(db));
+  const { terms, values } = bookingConditions(query);
   const after = decodeCursor(query.cursor);
   if (after) { terms.push('(r.start_date > ? OR (r.start_date = ? AND r.id > ?))'); values.push(after[0], after[0], after[1]); }
   const limit = Math.min(200, query.limit ?? 100);
@@ -109,12 +110,12 @@ export async function listReservations(db: D1Database, query: BookingQuery) {
 }
 /** Internal window reads are bounded but unpaginated so validation never misses a conflict. */
 export async function windowReservations(db: D1Database, from: string, to: string): Promise<ReservationDTO[]> {
-  const { terms, values } = bookingConditions({ from, to }, await getSpan(db));
+  const { terms, values } = bookingConditions({ from, to });
   const { results } = await db.prepare(`${reservationSelect} WHERE ${terms.join(' AND ')} ORDER BY r.start_date, r.id`).bind(...values).all<Row>();
   return results.map(mapReservation);
 }
 export async function exportReservations(db: D1Database, query: BookingQuery): Promise<ReservationDTO[]> {
-  const { terms, values } = bookingConditions(query, await getSpan(db));
+  const { terms, values } = bookingConditions(query);
   const { results } = await db.prepare(`${reservationSelect} WHERE ${terms.join(' AND ')} ORDER BY r.start_date, r.id`).bind(...values).all<Row>();
   return results.map(mapReservation);
 }
@@ -127,10 +128,10 @@ const atomicGuard = `EXISTS (SELECT 1 FROM berths WHERE id = ?2 AND id <> 'unass
     WHERE v.id = ?4 AND v.length_ft IS NOT NULL AND b.length_ft IS NOT NULL AND v.length_ft > b.length_ft))
   AND ((SELECT is_exclusive FROM berths WHERE id = ?2) = 0 OR NOT EXISTS (
     SELECT 1 FROM reservations o WHERE o.berth_id = ?2 AND o.id <> ?1
-      AND o.start_date <= ?7 AND o.end_date >= ?6 AND o.start_date >= date(?6, '-' || ?10 || ' days')))
+      AND o.start_date <= ?7 AND o.end_date >= ?6 AND o.start_date >= coalesce(date(?6, '-' || max(?10, coalesce((SELECT CAST(value AS INTEGER) FROM app_meta WHERE key = 'max_span_days'), 366)) || ' days'),'0001-01-01')))
   AND (?4 IS NULL OR NOT EXISTS (SELECT 1 FROM reservations o WHERE o.vessel_id = ?4
     AND o.berth_id <> ?2 AND o.id <> ?1 AND o.start_date <= ?7 AND o.end_date >= ?6
-    AND o.start_date >= date(?6, '-' || ?10 || ' days')
+    AND o.start_date >= coalesce(date(?6, '-' || max(?10, coalesce((SELECT CAST(value AS INTEGER) FROM app_meta WHERE key = 'max_span_days'), 366)) || ' days'),'0001-01-01')
     AND julianday(min(o.end_date, ?7)) - julianday(max(o.start_date, ?6)) >= 1))`;
 
 function writeValues(id: string, value: BookingWrite, now: string, span: number): Value[] {
@@ -248,7 +249,7 @@ export async function listIssues(db: D1Database, query: IssueQuery) {
   if (!query.includeReviewed) terms.push('i.reviewed_at IS NULL');
   if (query.type) { terms.push('i.type = ?'); values.push(query.type); }
   if (query.berthId) { terms.push('(i.berth_id = ? OR EXISTS (SELECT 1 FROM reservations r WHERE (r.id = i.reservation_id OR r.id = i.other_reservation_id) AND r.berth_id = ?))'); values.push(query.berthId, query.berthId); }
-  if (query.from) { terms.push("i.end_date >= ? AND i.start_date >= date(?, '-' || ? || ' days')"); values.push(query.from, query.from, await getSpan(db)); }
+  if (query.from) { terms.push("i.end_date >= ? AND i.start_date >= coalesce(date(?, '-' || coalesce((SELECT CAST(value AS INTEGER) FROM app_meta WHERE key = 'max_span_days'),366) || ' days'),'0001-01-01')"); values.push(query.from, query.from); }
   if (query.to) { terms.push('i.start_date <= ?'); values.push(query.to); }
   const after = decodeCursor(query.cursor);
   if (after) { terms.push('(i.start_date < ? OR (i.start_date = ? AND i.id < ?))'); values.push(after[0], after[0], after[1]); }

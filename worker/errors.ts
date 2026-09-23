@@ -2,7 +2,7 @@ import type { Alternatives, ReservationDTO } from '../shared/types';
 
 export class ApiError extends Error {
   constructor(
-    public status: 400 | 404 | 409 | 422 | 500,
+    public status: 400 | 404 | 409 | 413 | 422 | 500,
     public code: string,
     message: string,
     public conflicts: ReservationDTO[] = [],

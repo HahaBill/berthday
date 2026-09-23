@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Route, Routes } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import type { IssueDTO, MetaResponse } from '../shared/types';
@@ -14,7 +14,8 @@ import ScheduleView from './views/ScheduleView';
 import BookingsView from './views/BookingsView';
 import IssuesView from './views/IssuesView';
 import VesselsView from './views/VesselsView';
-import ImportView from './views/ImportView';
+const ImportView = lazy(() => import('./views/ImportView'));
+const ResourcesView = lazy(() => import('./views/ResourcesView'));
 
 export default function App() {
   const meta = useQuery({ queryKey: ['meta'], queryFn: () => api<MetaResponse>('/meta') });
@@ -29,9 +30,9 @@ export default function App() {
   return <>
     <div className="facility-bar"><span><span className="live-dot"/>Harborview Marine Research Center</span><span>Dock operations <span className="utility-separator">/</span>Berth scheduling</span></div>
     <header className="site-header"><a className="brand" href="/" aria-label="Berthday home"><span className="brand-mark"><Icon name="anchor" size={27}/></span><div><span className="brand-name">Berthday<span className="brand-dot">.</span></span><span className="tagline">Every vessel, the right berth, on the right day.</span></div></a><div className="header-actions"><button className="button" onClick={() => setFind({})}><Icon name="search"/>Find a berth</button><button className="button primary" onClick={() => setBooking({})}><Icon name="plus"/>New booking</button></div></header>
-    <div className="navigation-bar"><nav aria-label="Main navigation">{[['/', 'calendar', 'Schedule'], ['/bookings', 'list', 'Bookings'], ['/issues', 'alert', 'Issues'], ['/vessels', 'ship', 'Vessels'], ['/import', 'import', 'Migration']].map(([to, icon, title]) => <NavLink key={to} to={to} end={to === '/'}><Icon name={icon}/>{title}{to === '/issues' && issueCount > 0 && <span className="nav-count">{issueCount}</span>}</NavLink>)}</nav><div className="workspace-label"><span className="live-dot"/>Harborview workspace</div></div>
+    <div className="navigation-bar"><nav aria-label="Main navigation">{[['/', 'calendar', 'Schedule'], ['/bookings', 'list', 'Bookings'], ['/issues', 'alert', 'Issues'], ['/vessels', 'ship', 'Vessels'], ['/resources', 'anchor', 'Resources'], ['/import', 'import', 'Imports']].map(([to, icon, title]) => <NavLink key={to} to={to} end={to === '/'}><Icon name={icon}/>{title}{to === '/issues' && issueCount > 0 && <span className="nav-count">{issueCount}</span>}</NavLink>)}</nav><div className="workspace-label"><span className="live-dot"/>Harborview workspace</div></div>
     {meta.isPending ? <Loading/> : meta.isError ? <main className="page"><ErrorState error={meta.error} retry={() => void meta.refetch()}/></main> : <AppContext.Provider value={{ meta: meta.data, newBooking: (draft = {}) => setBooking(draft), showBooking: setDrawer, editBooking: r => { setDrawer(null); setBooking(r); }, findBerth: (draft = {}) => setFind(draft), notify: setToast, selectedLength, setSelectedLength }}>
-      <main className="page"><Routes><Route path="/" element={<ScheduleView/>}/><Route path="/bookings" element={<BookingsView/>}/><Route path="/issues" element={<IssuesView/>}/><Route path="/vessels" element={<VesselsView/>}/><Route path="/import" element={<ImportView/>}/><Route path="*" element={<ScheduleView/>}/></Routes></main>
+      <main className="page"><Suspense fallback={<Loading label="Loading workspace…"/>}><Routes><Route path="/" element={<ScheduleView/>}/><Route path="/bookings" element={<BookingsView/>}/><Route path="/issues" element={<IssuesView/>}/><Route path="/vessels" element={<VesselsView/>}/><Route path="/resources" element={<ResourcesView/>}/><Route path="/import" element={<ImportView/>}/><Route path="*" element={<ScheduleView/>}/></Routes></Suspense></main>
       {booking && <BookingForm draft={booking} onClose={() => { setBooking(null); setSelectedLength(null); }}/ >}
       {drawer && <BookingDrawer id={drawer} onClose={() => setDrawer(null)}/>}
       {find && <FindBerthPanel draft={find} onClose={() => { setFind(null); setSelectedLength(null); }}/>}

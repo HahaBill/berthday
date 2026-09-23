@@ -7,7 +7,7 @@ import Icon from './Icon';
 import LengthGauge from './LengthGauge';
 import { clipScheduleBooking, scheduleDateWindow } from '../scheduleFilters';
 
-export default function MonthGrid({ month, reservations, berths, focus, from, to }: { month: string; reservations: ReservationDTO[]; berths: BerthDTO[]; focus: string | null; from?: string; to?: string }) {
+export default function MonthGrid({ month, reservations, berths, focus, from, to, onAddResource }: { month: string; reservations: ReservationDTO[]; berths: BerthDTO[]; focus: string | null; from?: string; to?: string; onAddResource: () => void }) {
   const { showBooking, newBooking, selectedLength } = useApp();
   const [selection, setSelection] = useState<{ berthId: string; start: number; end: number } | null>(null);
   const days = Array.from({ length: daysInMonth(month) }, (_, i) => i + 1);
@@ -29,7 +29,7 @@ export default function MonthGrid({ month, reservations, berths, focus, from, to
       const placed = rows.map(({ r, clipped }) => { let lane = lanes.findIndex(end => end < clipped.startDate); if (lane < 0) lane = lanes.length; lanes[lane] = clipped.endDate; return { r, clipped, lane }; });
       const height = Math.max(84, lanes.length * 35 + 28);
       return <div key={berth.id}>{!berth.isExclusive && (index === 0 || visible[index - 1].isExclusive) && <div className="pool-divider"><Icon name="anchor" size={13}/>Shared resources<span>Multiple bookings allowed</span></div>}<div className={`berth-grid-row ${selectedLength && berth.lengthFt && selectedLength > berth.lengthFt ? 'dimmed' : ''}`} style={{ height }}>
-        <div className="berth-heading"><div className="berth-title"><span>{berth.name === 'Small craft slips (institution boats)' ? 'Small craft slips' : berth.name}</span>{berth.lengthFt ? <strong>{berth.lengthFt}<small> ft</small></strong> : <span className="pool-chip">{berth.id === 'unassigned' ? 'Review' : 'Shared'}</span>}</div><LengthGauge length={berth.lengthFt} marker={selectedLength}/>{!berth.isExclusive && <small>{berth.id === 'small-craft-slips' ? 'Institution boats' : berth.id === 'unassigned' ? 'Legacy rows without a berth' : 'No fixed vessel length'}</small>}</div>
+        <div className="berth-heading" id={`resource-${berth.id}`} tabIndex={-1}><div className="berth-title"><span>{berth.name === 'Small craft slips (institution boats)' ? 'Small craft slips' : berth.name}</span>{berth.lengthFt ? <strong>{berth.lengthFt}<small> ft</small></strong> : <span className="pool-chip">{berth.id === 'unassigned' ? 'Review' : 'Shared'}</span>}</div><LengthGauge length={berth.lengthFt} marker={selectedLength}/>{!berth.isExclusive && <small>{berth.id === 'small-craft-slips' ? 'Institution boats' : berth.id === 'unassigned' ? 'Legacy rows without a berth' : 'No fixed vessel length'}</small>}</div>
         <div className="berth-days"><div className="cell-background day-columns">{days.map(day => <button key={day} disabled={berth.id === 'unassigned' || !inRange(day)} className={`day-cell ${weekend(day) ? 'weekend' : ''} ${!inRange(day) ? 'outside-filter' : ''} ${selection?.berthId === berth.id && day >= Math.min(selection.start, selection.end) && day <= Math.max(selection.start, selection.end) ? 'selected-cell' : ''}`} aria-label={!inRange(day) ? `${date(day)}, outside selected dates` : berth.id === 'unassigned' ? `Unassigned legacy row, ${date(day)}` : `New booking at ${berth.name}, ${date(day)}`} onPointerDown={e => { if (e.button === 0 && inRange(day) && berth.id !== 'unassigned') setSelection({ berthId: berth.id, start: day, end: day }); }} onPointerEnter={() => { if (!inRange(day)) setSelection(null); else if (selection?.berthId === berth.id) setSelection({ ...selection, end: day }); }} onPointerUp={finishSelection} onClick={e => { if (e.detail === 0 && inRange(day) && berth.id !== 'unassigned') newBooking({ berthId: berth.id, startDate: date(day), endDate: date(day) }); }}><span>+</span></button>)}</div>
           <div className="booking-lanes" style={{ gridTemplateRows: `repeat(${Math.max(1, lanes.length)}, 29px)` }}>{placed.map(({ r, clipped, lane }) => {
             const conflict = r.issues.some(i => !i.reviewed && i.type !== 'fit');
@@ -39,5 +39,6 @@ export default function MonthGrid({ month, reservations, berths, focus, from, to
           })}</div>
         </div></div></div>;
     })}
+    <div className="grid-new-resource-row"><button type="button" className="grid-add-resource" onClick={onAddResource}><span><Icon name="plus" size={17}/></span>Add resource</button><div className="grid-new-resource-hint">Add a dedicated berth or shared resource</div></div>
   </div></div>;
 }

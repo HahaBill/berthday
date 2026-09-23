@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import type { PaginatedResponse, ReservationDTO } from '../../shared/types';
 import { addDays, diffDays, isValidDate, monthEnd, monthStart } from '../../shared/dates';
 import { allPages, api, bookingName, dateLabel, params } from '../api';
@@ -85,7 +85,7 @@ export default function BookingsView() {
   }
   const filtered = !!(filters.berthId || filters.kind || filters.q || filters.hasIssues || filters.vesselId);
   return <section className="secondary-view bookings-view">
-    <div className="page-heading"><div><span className="eyebrow">Every stay, in one place</span><h1>Bookings</h1><p>Search the schedule, check the details, and plan the next arrival.</p></div><div className="heading-actions"><>{history ? <button className="button" onClick={() => void exportHistory()} disabled={exporting}><Icon name="download"/>{exporting ? 'Exporting…' : 'Export CSV'}</button> : <a className={`button${validRange ? '' : ' disabled'}`} href={validRange ? `/api/export.csv?${params({ ...filters, from, to })}` : undefined} aria-disabled={!validRange} download><Icon name="download"/>Export CSV</a>}</><button className="button primary" disabled={!validRange} onClick={() => newBooking(history ? undefined : { startDate: from, endDate: from })}><Icon name="plus"/>New booking</button></div></div>
+    <div className="page-heading"><div><span className="eyebrow">Every stay, in one place</span><h1>Bookings</h1><p>Search the schedule, check the details, and plan the next arrival.</p></div><div className="heading-actions"><Link className="button" to="/import"><Icon name="import"/>Import Excel</Link><>{history ? <button className="button" onClick={() => void exportHistory()} disabled={exporting}><Icon name="download"/>{exporting ? 'Exporting…' : 'Export CSV'}</button> : <a className={`button${validRange ? '' : ' disabled'}`} href={validRange ? `/api/export.csv?${params({ ...filters, from, to })}` : undefined} aria-disabled={!validRange} download><Icon name="download"/>Export CSV</a>}</><button className="button primary" disabled={!validRange} onClick={() => newBooking(history ? undefined : { startDate: from, endDate: from })}><Icon name="plus"/>New booking</button></div></div>
     <div className="filter-bar booking-filters">
       <label className="field search-field"><span>Search bookings</span><div className="input-with-icon"><Icon name="search"/><input type="search" value={filters.q ?? ''} maxLength={300} placeholder="Vessel or booking title" onChange={e => change('q', e.target.value)}/></div></label>
       <label className="field"><span>Date range</span><select value={history ? 'history' : 'dates'} onChange={e => setRangeMode(e.target.value === 'history')}><option value="dates">Selected dates</option><option value="history">All imported history</option></select></label>
