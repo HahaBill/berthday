@@ -25,7 +25,15 @@ Open the Vite URL printed in the terminal (normally `http://localhost:5173`). Vi
 
 The first schedule view opens December 2019, the last imported month. Use **Today** for the current month or **Latest data** to return to the imported data.
 
-Bookings supports either selected dates or **All imported history**. History mode progressively searches 1997–2019 in bounded windows and shows each booking once, including stays that cross windows. Its CSV export includes every matching historical booking, even those not yet loaded in the table. Ask searches without explicit dates use this visible history mode.
+Bookings supports either selected dates or **All imported history**. History mode progressively searches 1997–2019 in bounded windows and shows each booking once, including stays that cross windows. Its CSV export includes every matching historical booking, even those not yet loaded in the table. This list remains available independently of the schedule’s Ask bar.
+
+## Ask and schedule filters
+
+Type a schedule question and press Enter. Ask immediately filters the schedule grid, without an Apply button or a redirect to the Bookings list. A request for a year such as “show all bookings in 2000” opens January 2000 with a visible 1 January–31 December range chip; month arrows keep that range and stop at its ends. A deliberate month-picker, Today, or Latest data selection clears the date range while retaining berth, vessel, kind, and issue filters.
+
+The URL stores the active filters, so a filtered view can be bookmarked or shared. Remove any chip to update the grid immediately, or select Clear filters. Multiple values within a filter are included; different filter fields narrow the results together. Bars are clipped to the selected days, but their drawer retains the original booking dates and source. Filtered counts and occupancy describe the matching bookings; hidden bookings can still occupy the berth.
+
+Ask can also prepare a new booking, for example “Create a community sail day at North Pier Face on July 10, 2026” or “book R/V Clear Tern at North Pier East from 3 to 10 July 2026.” It opens one editable draft and makes no reservation write. Missing or ambiguous required details remain blank for the coordinator to complete. Only **Save booking** sends the authoritative validation request; a successful save returns to the schedule and focuses the saved booking.
 
 ## Validate
 
@@ -41,17 +49,19 @@ npm run build
 
 The 13 migration golden tests cover formula date headers, invalid dates, copied Decembers, merged/coloured bars, duplicate berth rows, disputed lengths, and stable counts. `npm test` runs all three JavaScript suites:
 
-- 75 shared-domain, date, Ask fallback, and Python-parity tests (`npm run test:unit`). The timezone is `America/New_York` to expose accidental local-time date math; parity compares all 48 Python issue records against TypeScript.
-- 16 Worker API integration tests (`npm run test:api`) with the real local D1 runtime and an isolated fixture. They exercise guarded concurrent writes, conflicts and alternatives, fit/issue changes, reviews, legacy edits, long stays, vessel movement, pagination, validation, Ask fallback/AI response handling, long and multibyte search text, and CSV export.
-- 6 D1 provisioning tests that verify reuse/creation and reject IDs belonging to another database.
+- Shared-domain, date, Ask fallback and command routing, schedule-filter, and Python-parity tests (`npm run test:unit`). The timezone is `America/New_York` to expose accidental local-time date math; parity compares all 48 Python issue records against TypeScript.
+- Worker API integration tests (`npm run test:api`) with the real local D1 runtime and an isolated fixture. They exercise guarded concurrent writes, conflicts and alternatives, fit/issue changes, reviews, legacy edits, long stays, vessel movement, pagination, validation, Ask fallback/AI response handling, long and multibyte search text, and CSV export.
+- D1 provisioning tests that verify reuse/creation and reject IDs belonging to another database.
 
 The API pool is pinned to Vitest 4.1.11 with `@cloudflare/vitest-pool-workers` 0.22.0. Its bundled workerd supports a test compatibility date of `2026-08-22`; the deployed Worker retains `2026-09-01`. The Miniflare dependency uses the declared `sharp` 0.35.4 override so a clean `npm ci` reproduces the working runtime.
 
-The local release check passed all **110 automated tests**, both TypeScript checks, and the production build. Browser checks covered all five pages at 390 px with no document overflow, historical vessel search, the seeded issue counts and highlighted source bookings, fit rejection and successful alternative booking, the Golden Compass length-change issue counts, availability, and Ask filters.
+The initial release’s local check passed all **110 automated tests**, both TypeScript checks, and the production build. Browser checks covered all five pages at 390 px with no document overflow, historical vessel search, the seeded issue counts and highlighted source bookings, fit rejection and successful alternative booking, the Golden Compass length-change issue counts, availability, and Ask filters.
+
+The schedule/Ask update passed **188 automated tests** (146 unit, 23 Worker API, 6 provisioning, and 13 migration), both TypeScript checks, and the production build. Browser checks verified one-submit navigation to January 2000, automatic year/berth/event filtering and removable chips, event draft/save/focus, conflict alternatives, blank missing fields, and the schedule and booking form at 390 px without document overflow. The temporary local event was removed after verification.
 
 The initial live deployment (`APP_VERSION=initial-20260922`) also passed `smoke-test.sh` and 16 live API checks covering imported schedule data, issue counts, availability, validation/alternatives, temporary booking writes, Ask fallback, and routing. The temporary booking was removed: the remote database returned to 2,587 imported reservations, zero app-created reservations, and 48 schedule issues. Live browser verification at 1280 px confirmed no document overflow, the default December 2019 view with nine booking bars, seven vessels, 17% occupancy and zero issues that month, plus direct loading of `/issues` with the 4/29/15 category counts.
 
-GitHub Actions has not run for this release, and its Cloudflare repository secrets are not configured. The confirmed deployment used the authenticated local Cloudflare CLI; configure the documented secrets to enable automated deployments.
+The initial GitHub Actions test job passed. Its deployment job failed because the repository lacks `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets. The confirmed live application was deployed manually through authenticated Wrangler OAuth; configure those secrets to enable automated deployments.
 
 To regenerate committed Worker environment types after changing bindings, run `npm run cf-typegen`.
 
@@ -61,7 +71,7 @@ To regenerate committed Worker environment types after changing bindings, run `n
 flowchart LR
   Browser[React SPA] -->|/api/*| Worker[Cloudflare Worker / Hono]
   Worker --> D1[(D1: berthday)]
-  Worker -->|Ask filters only| AI[Workers AI]
+  Worker -->|Interpret Ask request only| AI[Workers AI]
   Workbook[Legacy workbook] --> Python[Offline Python migration]
   Python --> Seed[seed.sql and import report]
   Seed --> CI[GitHub Actions]
@@ -71,7 +81,7 @@ flowchart LR
 
 `shared/` contains UTC date helpers, schemas, and business rules used by the UI and authoritative Worker. `worker/db.ts` owns SQL and maps storage fields to API DTOs. The React SPA is served by the same Worker; `/api/*` always reaches the Worker before the SPA fallback. An unknown API route returns JSON, while browser routes such as `/issues` support direct loads.
 
-The Ask bar produces visible, editable filters. It uses Workers AI when available and a deterministic parser when the binding is unavailable or the model fails; availability and booking validation always use the same deterministic domain rules.
+The Ask bar translates requests into visible schedule filters or an editable booking draft. It uses Workers AI when available and a deterministic parser when the binding is unavailable or the model fails. The interpretation step does not write bookings; availability and Save booking always use the same deterministic domain rules.
 
 ## Migration
 
@@ -137,6 +147,7 @@ The manual seed command has the same empty-database guard. Set `FORCE_RESEED=tru
 4. Try a second vessel on the same berth and dates. Inspect the conflict and suggested date shift.
 5. In **Vessels**, change R/V Golden Compass to 300 ft to create 23 fit issues, then to 200 ft to clear those 23.
 6. Use **Find a berth** for 120 ft, 1–7 August 2026. North Pier East and North Pier West fit; shorter berths are visibly marked.
-7. Open **Migration** for the 2,587 imported reservations and grouped review log. Ask “which berths fit a 120 ft boat 3–10 July 2026” to apply the same availability search through visible filters.
+7. Open **Migration** for the 2,587 imported reservations and grouped review log. In the schedule’s Ask bar, enter “show all bookings in 2000” to open January with the whole-year range active; move to February without losing the filters.
+8. Ask to book a vessel and inspect the editable draft. Complete any blank required fields, then select Save booking; the server validates and the schedule focuses the saved record.
 
 See [DECISIONS.md](DECISIONS.md) for assumptions, tradeoffs, and questions for the dock coordinator.

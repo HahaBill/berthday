@@ -4,7 +4,7 @@ import { applyD1Migrations, reset } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import app from '../index';
 import type { Bindings } from '../types';
-import type { IssueDTO, ReservationDTO } from '../../shared/types';
+import type { AskResponse, IssueDTO, ReservationDTO } from '../../shared/types';
 
 const bindings = env as unknown as Bindings & { TEST_MIGRATIONS: { name: string; queries: string[] }[] };
 const stamp = '2026-09-22T00:00:00.000Z';
@@ -12,6 +12,8 @@ const request = (path: string, method = 'GET', payload?: unknown) => app.request
   method, ...(payload === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
 }, bindings);
 const booking = (overrides: Record<string, unknown> = {}) => ({ berthId: 'small', kind: 'vessel', vesselId: 'tern', startDate: '2026-07-03', endDate: '2026-07-10', ...overrides });
+const askBody = (q: string) => ({ q, today: '2026-09-22', viewedMonth: '2019-12' });
+const draftBerth = () => bindings.DB.prepare("INSERT INTO berths (id,name,length_ft,is_exclusive,sort_order) VALUES ('north-pier-face','North Pier Face',75,1,5)").run();
 
 beforeEach(async () => {
   await applyD1Migrations(bindings.DB, bindings.TEST_MIGRATIONS);
@@ -24,6 +26,87 @@ beforeEach(async () => {
 afterEach(async () => { await reset(); });
 
 describe('Berthday API on actual D1', () => {
+  it('prioritizes January 2000 navigation over malformed AI navigation output', async () => {
+    let aiCalls = 0;
+    for (const q of ['Go to January 2000', 'Go to January2000']) {
+      const response = await app.request('https://berthday.test/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(askBody(q)) },
+        { ...bindings, AI: { run: async () => { aiCalls++; return { response: { intent: 'navigate', vesselQuery: 'January 2000' } }; } } });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ intent: 'navigate', filters: { dateFrom: '2000-01-01' }, source: 'fallback' });
+    }
+    expect(aiCalls).toBe(0);
+  });
+
+  it('rejects an AI navigate intent with no date instead of silently using the viewed month', async () => {
+    const response = await app.request('https://berthday.test/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(askBody('Please help me find the next page')) },
+      { ...bindings, AI: { run: async () => ({ response: { intent: 'navigate', vesselQuery: 'January 2000' } }) } });
+    expect(await response.json()).toMatchObject({ intent: 'unsupported', source: 'fallback', message: expect.any(String) });
+  });
+
+  it('prioritizes complete date, kind, and berth filters over invented AI vessel filters', async () => {
+    let aiCalls = 0;
+    const queries = [
+      ['bookings in 2000', { dateFrom: '2000-01-01', dateTo: '2000-12-31' }],
+      ['bookings for 2000', { dateFrom: '2000-01-01', dateTo: '2000-12-31' }],
+      ['bookings for July 2010', { dateFrom: '2010-07-01', dateTo: '2010-07-31' }],
+      ['events in July 2010', { kinds: ['event'], dateFrom: '2010-07-01', dateTo: '2010-07-31' }],
+      ['Inner Channel July 2010', { berthIds: ['inner-channel'], dateFrom: '2010-07-01', dateTo: '2010-07-31' }],
+    ] as const;
+    for (const [q, filters] of queries) {
+      const response = await app.request('https://berthday.test/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(askBody(q)) },
+        { ...bindings, AI: { run: async () => { aiCalls++; return { response: { intent: 'search', vesselQuery: q } }; } } });
+      expect(await response.json()).toMatchObject({ intent: 'search', filters, source: 'fallback' });
+    }
+    expect(aiCalls).toBe(0);
+  });
+
+  it('returns a complete event draft without any booking or vessel writes', async () => {
+    await draftBerth();
+    let aiCalls = 0;
+    const response = await app.request('https://berthday.test/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(askBody('Create a community sail day at North Pier Face on July 10, 2026')) },
+      { ...bindings, AI: { run: async () => { aiCalls++; throw new Error('Explicit creation must not need AI'); } } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ intent: 'create_booking', filters: {}, draft: {
+      kind: 'event', title: 'community sail day', berthId: 'north-pier-face', startDate: '2026-07-10', endDate: '2026-07-10',
+    }, missingFields: [], source: 'fallback' });
+    expect(aiCalls).toBe(0);
+    expect(await bindings.DB.prepare('SELECT count(*) AS n FROM reservations').first('n')).toBe(0);
+    expect(await bindings.DB.prepare('SELECT count(*) AS n FROM vessels').first('n')).toBe(3);
+  });
+
+  it('leaves partial event drafts blank and reports missing fields', async () => {
+    const partial = await request('/ask', 'POST', askBody('Add event "Open day"'));
+    expect(await partial.json()).toMatchObject({ intent: 'create_booking', draft: { kind: 'event', title: 'Open day' }, missingFields: ['berthId', 'startDate', 'endDate'] });
+    const unknown = await request('/ask', 'POST', askBody('Create event Open day at Mystery Dock on July 10'));
+    const unknownBody = await unknown.json<AskResponse>();
+    expect(unknownBody.draft).toEqual({ kind: 'event', title: 'Open day', startDate: '2026-07-10', endDate: '2026-07-10' });
+    expect(unknownBody.missingFields).toEqual(['berthId']);
+    const negated = await request('/ask', 'POST', askBody('Do not create an event at North Pier Face tomorrow'));
+    expect(await negated.json()).toMatchObject({ intent: 'unsupported', message: expect.any(String) });
+    expect(await bindings.DB.prepare('SELECT count(*) AS n FROM reservations').first('n')).toBe(0);
+  });
+
+  it('resolves only a unique vessel into an unsaved vessel draft', async () => {
+    await draftBerth();
+    const unique = await request('/ask', 'POST', askBody('Book R/V Clear Tern at NPF July 10, 2026'));
+    expect(await unique.json()).toMatchObject({ intent: 'create_booking', draft: { kind: 'vessel', vesselId: 'tern' }, missingFields: [] });
+    await bindings.DB.prepare("INSERT INTO vessels (id,name,name_key,length_ft,length_status,created_at,updated_at) VALUES ('tern-2','R/V Clear Tern II','R/V CLEAR TERN II',80,'known',?1,?1)").bind(stamp).run();
+    const ambiguous = await (await request('/ask', 'POST', askBody('Book vessel Clear Tern at NPF July 10, 2026'))).json<AskResponse>();
+    expect(ambiguous.draft?.vesselId).toBeUndefined(); expect(ambiguous.missingFields).toEqual(['vesselId']);
+    const unknown = await (await request('/ask', 'POST', askBody('Book R/V Unrecorded Vessel at NPF July 10, 2026'))).json<AskResponse>();
+    expect(unknown.draft?.vesselId).toBeUndefined(); expect(unknown.missingFields).toEqual(['vesselId']);
+    expect(await bindings.DB.prepare('SELECT count(*) AS n FROM reservations').first('n')).toBe(0);
+    expect(await bindings.DB.prepare('SELECT count(*) AS n FROM vessels').first('n')).toBe(4);
+  });
+
+  it('grounds AI-assisted drafts in the request instead of invented dates or berths', async () => {
+    await draftBerth();
+    const response = await app.request('https://berthday.test/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(askBody('Can you perhaps add event Open day at NPF?')) },
+      { ...bindings, AI: { run: async () => ({ response: { intent: 'create_booking', draft: { kind: 'event', title: 'Invented title', berthId: 'large', startDate: '2099-01-01', endDate: '2099-01-02' } } }) } });
+    expect(await response.json()).toMatchObject({ intent: 'create_booking', draft: { kind: 'event', title: 'Open day', berthId: 'north-pier-face' }, missingFields: ['startDate', 'endDate'] });
+    expect(await bindings.DB.prepare('SELECT count(*) AS n FROM reservations').first('n')).toBe(0);
+  });
+
   it('creates, rejects overlapping saves with alternatives, and rejects bad fit', async () => {
     const created = await request('/reservations', 'POST', booking()); expect(created.status).toBe(201);
     const conflict = await request('/reservations', 'POST', booking({ vesselId: 'unknown' }));
@@ -167,7 +250,7 @@ describe('Berthday API on actual D1', () => {
   it('normalizes model vessel searches and rejects oversized model text safely', async () => {
     const ask = (vesselQuery: string) => app.request('https://berthday.test/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: 'which berths fit a 120 ft boat 3–10 July 2026', today: '2026-09-22', viewedMonth: '2019-12' }),
+      body: JSON.stringify({ q: 'A detail I need interpreted', today: '2026-09-22', viewedMonth: '2019-12' }),
     }, { ...bindings, AI: { run: async () => ({ response: { intent: 'search', vesselQuery } }) } });
     const name = 'R/V Vessel With A Name That Is Longer Than The D1 Pattern Limit';
     await request('/vessels', 'POST', { name, lengthFt: 120 });
@@ -176,7 +259,7 @@ describe('Berthday API on actual D1', () => {
     expect(await answer.json()).toMatchObject({ source: 'ai', filters: { vesselQuery: name, vesselIds: [expect.any(String)] } });
     const tooLong = await ask('x'.repeat(201));
     expect(tooLong.status).toBe(200);
-    expect(await tooLong.json()).toMatchObject({ source: 'fallback', intent: 'availability', filters: { lengthFt: 120 } });
+    expect(await tooLong.json()).toMatchObject({ source: 'fallback', intent: 'unsupported' });
   });
 
   it('uses deterministic filters when a model-generated vessel lookup fails', async () => {
@@ -189,22 +272,22 @@ describe('Berthday API on actual D1', () => {
     } });
     const response = await app.request('https://berthday.test/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: 'which berths fit a 120 ft boat 3–10 July 2026', today: '2026-09-22', viewedMonth: '2019-12' }),
+      body: JSON.stringify({ q: 'A detail I need interpreted', today: '2026-09-22', viewedMonth: '2019-12' }),
     }, { ...bindings, DB: db, AI: { run: async () => ({ response: { intent: 'search', vesselQuery: 'Clear Tern' } }) } });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ source: 'fallback', intent: 'availability', filters: { lengthFt: 120, dateFrom: '2026-07-03', dateTo: '2026-07-10' } });
+    expect(await response.json()).toMatchObject({ source: 'fallback', intent: 'unsupported' });
   });
 
   it('accepts structured AI output, clamps dates, and falls back on invalid AI output', async () => {
     const ask = (response: unknown) => app.request('https://berthday.test/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: 'double bookings in 2017', today: '2026-09-22', viewedMonth: '2019-12' }),
+      body: JSON.stringify({ q: 'A detail I need interpreted', today: '2026-09-22', viewedMonth: '2019-12' }),
     }, { ...bindings, AI: { run: async () => ({ response }) } });
     const object = await ask({ intent: 'navigate', dateFrom: '2101-01-01' });
     expect(await object.json()).toMatchObject({ source: 'ai', intent: 'navigate', filters: { dateFrom: '2100-12-31' } });
     const string = await ask(JSON.stringify({ intent: 'search', dateFrom: '2010-07-31', dateTo: '2010-07-01' }));
     expect(await string.json()).toMatchObject({ source: 'ai', filters: { dateFrom: '2010-07-01', dateTo: '2010-07-31' } });
     const invalid = await ask({ intent: 'search', berthIds: ['invented-berth'] });
-    expect(await invalid.json()).toMatchObject({ source: 'fallback', intent: 'issues', filters: { issueTypes: ['overlap'] } });
+    expect(await invalid.json()).toMatchObject({ source: 'fallback', intent: 'unsupported' });
   });
 });

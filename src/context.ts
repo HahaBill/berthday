@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { MetaResponse, ReservationDTO, Kind } from '../shared/types';
-export type BookingDraft = { berthId?: string; startDate?: string; endDate?: string; vesselId?: string | null; kind?: Kind; title?: string | null; notes?: string | null; id?: string };
+export type BookingDraft = { berthId?: string; startDate?: string; endDate?: string; vesselId?: string | null; kind?: Kind; title?: string | null; notes?: string | null; id?: string; fromAsk?: boolean; showOnSave?: boolean };
 export type FindDraft = { start?: string; end?: string; lengthFt?: number; vesselId?: string };
 export interface AppState {
   meta: MetaResponse;

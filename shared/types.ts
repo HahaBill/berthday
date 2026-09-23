@@ -154,8 +154,18 @@ export interface VesselUpdateResponse {
   clearedFitIssues: number;
 }
 
+export interface BookingDraft {
+  kind: Kind;
+  title?: string;
+  berthId?: string;
+  startDate?: string;
+  endDate?: string;
+  vesselId?: string;
+  notes?: string;
+}
+
 export type AskIntent = {
-  intent: 'search' | 'availability' | 'issues' | 'navigate' | 'unsupported';
+  intent: 'search' | 'availability' | 'issues' | 'navigate' | 'create_booking' | 'unsupported';
   dateFrom?: string;
   dateTo?: string;
   berthIds?: string[];
@@ -164,13 +174,16 @@ export type AskIntent = {
   lengthFt?: number;
   issueTypes?: IssueType[];
   reason?: string;
+  draft?: BookingDraft;
 };
 
 export interface AskRequest { q: string; today: string; viewedMonth: string }
 export interface AskResponse {
   intent: AskIntent['intent'];
-  filters: Omit<AskIntent, 'intent'> & { vesselIds?: string[] };
+  filters: Omit<AskIntent, 'intent' | 'draft'> & { vesselIds?: string[] };
   chips: { key: string; label: string }[];
   source: 'ai' | 'fallback';
   message?: string;
+  draft?: BookingDraft;
+  missingFields?: string[];
 }

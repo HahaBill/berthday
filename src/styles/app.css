@@ -65,7 +65,10 @@ input[type=checkbox] { width: 16px; min-height: 16px; accent-color: var(--harbou
 .ask-bar:focus-within { box-shadow: 0 0 0 2px #99C3D7; }
 .ask-example { color: #82919A; font-size: 11px; white-space: nowrap; }
 .ask-submit { border: none; background: #EEF4F7; border-radius: 5px; width: 32px; height: 32px; display: grid; place-items: center; color: #416E88; }
-.ask-results { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 13px 0 0; font-size: 12px; }
+.ask-help { margin: 8px 2px 0; color: #5E7280; font-size: 11px; line-height: 1.6; }
+.ask-feedback { display: flex; align-items: center; gap: 7px; margin: 8px 2px 0; color: #356A58; font-size: 12px; line-height: 1.5; }
+.ask-feedback svg, .booking-draft-note svg { flex-shrink: 0; }
+.booking-draft-note { display: flex; align-items: flex-start; gap: 9px; padding: 11px 13px; border: 1px solid #D1E1EB; border-radius: 5px; background: #F0F6F9; color: #365A71; font-size: 12px; line-height: 1.5; }
 .filter-chip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; background: #E4EEF3; color: #365A71; border: 1px solid #D1E1EB; }
 .schedule-stats { display: grid; grid-template-columns: repeat(4, 1fr); padding: 2px 0 23px; gap: 20px; }
 .schedule-stats > div { display: flex; align-items: center; gap: 11px; border-right: 1px solid #DEE6EA; }

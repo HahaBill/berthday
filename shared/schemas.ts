@@ -118,8 +118,18 @@ export const askRequestSchema = z.object({
   viewedMonth: monthSchema,
 }).strict();
 
+export const bookingDraftSchema = z.object({
+  kind: kindSchema,
+  title: z.string().trim().min(1).max(300).optional(),
+  berthId: idSchema.optional(),
+  startDate: dateSchema.optional(),
+  endDate: dateSchema.optional(),
+  vesselId: idSchema.optional(),
+  notes: z.string().max(5000).optional(),
+}).strict();
+
 export const askIntentSchema = z.object({
-  intent: z.enum(['search', 'availability', 'issues', 'navigate', 'unsupported']),
+  intent: z.enum(['search', 'availability', 'issues', 'navigate', 'create_booking', 'unsupported']),
   dateFrom: dateSchema.optional(),
   dateTo: dateSchema.optional(),
   berthIds: z.array(idSchema).max(9).optional(),
@@ -128,7 +138,11 @@ export const askIntentSchema = z.object({
   lengthFt: lengthSchema.optional(),
   issueTypes: z.array(issueTypeSchema).max(3).optional(),
   reason: z.string().max(500).optional(),
-}).strict();
+  draft: bookingDraftSchema.optional(),
+}).strict().superRefine((value, context) => {
+  if (value.intent === 'navigate' && !value.dateFrom) context.addIssue({ code: 'custom', path: ['dateFrom'], message: 'Choose a date or month to navigate to.' });
+  if (value.intent === 'create_booking' && !value.draft) context.addIssue({ code: 'custom', path: ['draft'], message: 'A booking draft is required.' });
+});
 
 export const exportQuerySchema = z.object({
   from: dateSchema,
