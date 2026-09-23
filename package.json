@@ -7,7 +7,7 @@
     "dev": "concurrently -k \"vite --host 0.0.0.0\" \"wrangler dev --port 8787\"",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
-    "test": "npm run test:unit && npm run test:api && node --test scripts/ci/ensure-d1.test.mjs",
+    "test": "npm run test:unit && npm run test:api && node --test scripts/ci/*.test.mjs",
     "test:unit": "TZ=America/New_York vitest run",
     "test:api": "TZ=America/New_York vitest run --config worker/vitest.config.ts",
     "migrate": "python3 migration/extract.py --input data/dock_schedule.xlsx --out migration/out --generated-at 2026-09-22T00:00:00+00:00",
