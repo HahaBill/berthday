@@ -1,0 +1,21 @@
+:root {
+  --chart: #F4F7F8;
+  --ink: #14212B;
+  --harbour: #1F5F8B;
+  --port-red: #C23B32;
+  --starboard: #2E7D4F;
+  --signal-amber: #C98A0B;
+  --slate: #6B7A86;
+  --sail: #2B8C8C;
+  --line: #DFE6E9;
+  --muted: #637580;
+  --surface: #FFFFFF;
+  --radius: 9px;
+  font-family: 'Barlow', sans-serif;
+  color: var(--ink);
+  background: var(--chart);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}

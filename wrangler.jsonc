@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "berthday",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "berthday",
+    "database_id": "ea3b6ac9-b720-45e7-a4c9-d8bf2c7ea89a",
+    "migrations_dir": "migrations"
+  }],
+  "ai": { "binding": "AI" },
+  "vars": { "NL_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "APP_VERSION": "dev" },
+  "observability": { "enabled": true }
+}
